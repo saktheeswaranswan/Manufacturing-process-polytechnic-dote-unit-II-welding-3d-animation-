@@ -1,0 +1,360 @@
+// Complete 3D Arc Welding & Cleaning Simulator for APDE
+// Features: Drag-to-weld, Thickness Slider, Dynamic Params, 3D Camera, Wire Brush Cleaning
+
+// Camera and View
+float rotX = PI/4.5;
+float rotY = PI/6;
+float zoom = 1.0;
+
+// System States
+int state = 0; // 0: Setup, 1: Tacked, 2: Welding, 3: Finished Weld, 4: Cleaning
+float electrodeProgress = -100;
+float brushProgress = 0;
+
+// Dynamic Parameters
+float plateThickness = 5.0; 
+float amps, volts, powerFactor, electrodeSize;
+
+// UI Interaction tracking
+boolean draggingSlider = false;
+
+// Weld Beads
+ArrayList<WeldDrop> beads = new ArrayList<WeldDrop>();
+
+class WeldDrop {
+  float x, y, z;
+  boolean cleaned;
+  
+  WeldDrop(float x, float y, float z) {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+    this.cleaned = false;
+  }
+}
+
+void setup() {
+  fullScreen(P3D);
+  orientation(LANDSCAPE);
+  calculateParameters();
+}
+
+void calculateParameters() {
+  electrodeSize = max(2.0, plateThickness * 0.7);
+  amps = plateThickness * 40.0;
+  volts = 20.0 + (plateThickness * 0.5);
+  powerFactor = 0.80 + (plateThickness * 0.005); 
+}
+
+void draw() {
+  background(25, 30, 35);
+  lights();
+  directionalLight(220, 220, 220, 0, 1, -1);
+
+  // -------------------------
+  // 1. 3D SCENE RENDERING
+  // -------------------------
+  pushMatrix();
+  translate(width/2, height/2 + 50, -100);
+  scale(zoom);
+  rotateX(rotX);
+  rotateY(rotY);
+  
+  drawWorkpiece();
+  drawWeldBeads();
+  
+  if (state == 1 || state == 2) {
+    drawElectrodeAndArc();
+  }
+  
+  if (state == 4) {
+    drawWireBrush();
+  }
+  popMatrix();
+
+  // -------------------------
+  // 2. 2D HUD RENDERING
+  // -------------------------
+  hint(DISABLE_DEPTH_TEST);
+  camera(); // Reset camera for 2D UI
+  noLights();
+  drawHUD();
+  hint(ENABLE_DEPTH_TEST);
+}
+
+// --- 3D Elements ---
+
+void drawWorkpiece() {
+  noStroke();
+  fill(110, 115, 120);
+  
+  // Slab 1 (Back)
+  pushMatrix();
+  translate(0, 0, 55);
+  box(240, plateThickness * 4, 100);
+  popMatrix();
+  
+  // Slab 2 (Front)
+  pushMatrix();
+  translate(0, 0, -55);
+  box(240, plateThickness * 4, 100);
+  popMatrix();
+}
+
+void drawWeldBeads() {
+  noStroke();
+  for (WeldDrop b : beads) {
+    pushMatrix();
+    translate(b.x, -(plateThickness * 2), b.z);
+    
+    if (b.cleaned) {
+      // Cleaned silver
+      fill(230, 235, 240);
+      specular(255, 255, 255);
+      sphereDetail(8);
+      sphere(electrodeSize * 1.5);
+    } else {
+      // Slag accumulation (Thick, dark flux)
+      fill(60, 45, 35);
+      specular(0, 0, 0);
+      sphereDetail(6);
+      sphere(electrodeSize * 2.0);
+    }
+    popMatrix();
+  }
+}
+
+void drawElectrodeAndArc() {
+  float currentX = (state == 1) ? -100 : electrodeProgress;
+  float arcGap = 15.0; // Scaled up 3D representation of 3 mm gap
+  float startY = -(plateThickness * 2) - arcGap;
+  
+  pushMatrix();
+  translate(currentX, startY, 0);
+  
+  // Electrode Rod
+  pushMatrix();
+  rotateX(PI/2); 
+  translate(0, 0, 60); 
+  
+  // Inner metal
+  fill(220);
+  drawCylinder(electrodeSize / 2, 120);
+  // Outer flux
+  fill(200, 110, 60);
+  drawCylinder((electrodeSize / 2) + 1.5, 100);
+  popMatrix();
+  
+  // Current Flow Animation
+  if (state == 2) {
+    fill(255, 255, 0, 200);
+    noStroke();
+    float pulseY = -120 + ((frameCount * 6) % 120);
+    pushMatrix();
+    translate(0, pulseY, 0);
+    sphere(electrodeSize + 2);
+    popMatrix();
+  }
+
+  // 3mm Gap Label (Always faces camera roughly)
+  stroke(255);
+  strokeWeight(2);
+  line(20, 0, 30, 0);
+  line(20, arcGap, 30, arcGap);
+  line(25, 0, 25, arcGap);
+  fill(255, 150, 150);
+  textSize(16);
+  text("3 mm Gap", 35, arcGap/2 + 5);
+
+  // Electric Arc
+  if (state == 1 || (state == 2 && mousePressed)) {
+    stroke(255, 255, 220, 200);
+    strokeWeight(4);
+    line(0, 0, 0, random(-4, 4), arcGap, random(-4, 4));
+    
+    stroke(100, 150, 255, 100);
+    strokeWeight(15);
+    line(0, 0, 0, 0, arcGap, 0);
+    noStroke();
+  }
+  popMatrix();
+}
+
+void drawWireBrush() {
+  pushMatrix();
+  translate(brushProgress, -(plateThickness * 2) - 20, 0);
+  
+  // Handle
+  fill(180, 50, 50);
+  box(40, 15, 25);
+  
+  // Bristles
+  stroke(150);
+  strokeWeight(1);
+  for(int i = -15; i <= 15; i+=5) {
+    for(int j = -10; j <= 10; j+=5) {
+      line(i, 7.5, j, i + random(-2,2), 20, j + random(-2,2));
+    }
+  }
+  noStroke();
+  popMatrix();
+}
+
+void drawCylinder(float r, float h) {
+  int sides = 12;
+  float angle = 360.0 / sides;
+  beginShape(TRIANGLE_STRIP);
+  for (int i = 0; i <= sides; i++) {
+    float x = cos(radians(i * angle)) * r;
+    float y = sin(radians(i * angle)) * r;
+    vertex(x, y, -h/2);
+    vertex(x, y, h/2);
+  }
+  endShape();
+}
+
+// --- 2D HUD Elements ---
+
+void drawHUD() {
+  // Parameters Panel
+  fill(0, 180);
+  noStroke();
+  rect(10, 10, 280, 220, 8);
+  
+  fill(0, 255, 150);
+  textSize(20);
+  textAlign(LEFT, TOP);
+  text("WELDING PARAMETERS", 20, 20);
+  
+  fill(255);
+  textSize(18);
+  text("Thickness: " + nf(plateThickness, 1, 1) + " mm", 20, 55);
+  text("Electrode Ø: " + nf(electrodeSize, 1, 1) + " mm", 20, 80);
+  text("Current: " + int(amps) + " A", 20, 105);
+  text("Voltage: " + int(volts) + " V", 20, 130);
+  text("Power Factor: " + nf(powerFactor, 1, 2), 20, 155);
+  
+  // Thickness Slider
+  fill(100);
+  rect(20, 190, 200, 10, 5); // Track
+  float sliderX = map(plateThickness, 2, 15, 20, 220);
+  fill(255, 100, 100);
+  ellipse(sliderX, 195, 25, 25); // Thumb
+  
+  // Instructions
+  textAlign(CENTER, TOP);
+  fill(255, 255, 0);
+  textSize(22);
+  String instruction = "Drag screen to rotate 3D view.";
+  if (state == 0) instruction = "Adjust thickness, then press Tack Weld.";
+  if (state == 1) instruction = "Press Start Drag Weld.";
+  if (state == 2) instruction = "DRAG FINGER across screen to weld!";
+  if (state == 3) instruction = "Weld complete. Press Clean Flux.";
+  if (state == 4) instruction = "SCRUB FINGER left and right to clean slag!";
+  text(instruction, width/2, 20);
+
+  // Buttons
+  float btnW = width * 0.18;
+  float btnH = height * 0.12;
+  float startX = width/2 - (btnW * 2) - 15;
+  float btnY = height - btnH - 20;
+  
+  drawButton(startX, btnY, btnW, btnH, "1. Tack Weld", state == 0 ? color(50, 150, 255) : color(80));
+  drawButton(startX + btnW + 10, btnY, btnW, btnH, "2. Drag Weld", state == 1 ? color(255, 150, 50) : color(80));
+  drawButton(startX + (btnW+10)*2, btnY, btnW, btnH, "3. Clean Flux", state == 3 ? color(100, 220, 100) : color(80));
+  drawButton(startX + (btnW+10)*3, btnY, btnW, btnH, "Reset Setup", color(200, 50, 50));
+}
+
+void drawButton(float x, float y, float w, float h, String label, color c) {
+  fill(c);
+  rect(x, y, w, h, 8);
+  fill(255);
+  textAlign(CENTER, CENTER);
+  textSize(width * 0.022);
+  text(label, x + w/2, y + h/2);
+}
+
+// --- Interaction Logic ---
+
+void mousePressed() {
+  // Check Slider
+  if (state == 0 && mouseX > 10 && mouseX < 240 && mouseY > 170 && mouseY < 220) {
+    draggingSlider = true;
+    return;
+  }
+
+  // Check Buttons
+  float btnW = width * 0.18;
+  float btnH = height * 0.12;
+  float startX = width/2 - (btnW * 2) - 15;
+  float btnY = height - btnH - 20;
+  
+  if (mouseY > btnY) {
+    if (mouseX > startX && mouseX < startX + btnW && state == 0) {
+      // 1. Tack Weld
+      state = 1;
+      beads.add(new WeldDrop(-100, 0, 0)); 
+    } 
+    else if (mouseX > startX + btnW + 10 && mouseX < startX + (btnW*2) + 10 && state == 1) {
+      // 2. Enable Drag Welding
+      state = 2;
+    }
+    else if (mouseX > startX + (btnW*2) + 20 && mouseX < startX + (btnW*3) + 20 && state == 3) {
+      // 3. Enable Cleaning
+      state = 4;
+      brushProgress = 100; // Start brush at the end
+    }
+    else if (mouseX > startX + (btnW*3) + 30 && mouseX < startX + (btnW*4) + 30) {
+      // Reset
+      state = 0;
+      beads.clear();
+      electrodeProgress = -100;
+    }
+  }
+}
+
+void mouseDragged() {
+  if (draggingSlider) {
+    float constrainedX = constrain(mouseX, 20, 220);
+    plateThickness = map(constrainedX, 20, 220, 2.0, 15.0);
+    calculateParameters();
+  } 
+  else if (state == 2 && mouseY < height * 0.8) {
+    // Dragging to weld
+    float moveSpeed = (mouseX - pmouseX) * 0.2;
+    electrodeProgress += moveSpeed;
+    electrodeProgress = constrain(electrodeProgress, -100, 100);
+    
+    // Deposit beads as it moves
+    if (frameCount % 4 == 0) {
+      beads.add(new WeldDrop(electrodeProgress, 0, random(-2, 2)));
+    }
+    
+    // Check finish
+    if (electrodeProgress >= 100) {
+      state = 3;
+    }
+  }
+  else if (state == 4 && mouseY < height * 0.8) {
+    // Scrubbing to clean
+    float scrubSpeed = (mouseX - pmouseX) * 0.4;
+    brushProgress += scrubSpeed;
+    brushProgress = constrain(brushProgress, -110, 110);
+    
+    // Clean nearby beads
+    for (WeldDrop b : beads) {
+      if (!b.cleaned && abs(b.x - brushProgress) < 25) {
+        b.cleaned = true;
+      }
+    }
+  }
+  else if (mouseY < height * 0.8) {
+    // Rotate 3D Camera (Only if not interacting with UI/Welding)
+    rotY += (mouseX - pmouseX) * 0.01;
+    rotX -= (mouseY - pmouseY) * 0.01;
+  }
+}
+
+void mouseReleased() {
+  draggingSlider = false;
+}
