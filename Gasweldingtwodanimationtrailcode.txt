@@ -1,0 +1,234 @@
+// Complete Oxy-Acetylene Welding Flame Simulator
+// Interactive simulation for APDE
+
+float oxyVal = 50.0;
+float aceVal = 50.0;
+float oxyX, aceX;
+
+void setup() {
+  fullScreen();
+  orientation(LANDSCAPE);
+  oxyX = width * 0.3;
+  aceX = width * 0.7;
+}
+
+void draw() {
+  background(25);
+  
+  // Calculate flame ratio
+  float ratio = (aceVal > 0) ? (oxyVal / aceVal) : 5.0;
+  
+  // Draw Background Elements
+  drawCylinders();
+  drawStickman();
+  
+  // Simulation Area (Torch and Flame)
+  pushMatrix();
+  translate(width * 0.42, height * 0.5); // Position torch at stickman's hands
+  drawTorch();
+  drawFlame(ratio);
+  popMatrix();
+  
+  // UI and Info Panels
+  drawInfoPanel(ratio);
+  drawControls();
+}
+
+void drawCylinders() {
+  pushMatrix();
+  translate(width * 0.1, height * 0.4);
+  noStroke();
+  
+  // Acetylene Cylinder (Red)
+  fill(180, 20, 20);
+  rect(0, 0, 60, 200, 10);
+  fill(255);
+  textAlign(CENTER);
+  textSize(14);
+  text("C2H2", 30, 100);
+  
+  // Oxygen Cylinder (Black)
+  fill(40);
+  rect(70, 0, 60, 200, 10);
+  fill(255);
+  text("O2", 100, 100);
+  
+  // Simple hoses connecting to the torch area
+  stroke(255, 0, 0);
+  strokeWeight(3);
+  noFill();
+  bezier(30, 0, 30, -50, width*0.2, height*0.1, width*0.3, height*0.1);
+  stroke(0, 50, 255);
+  bezier(100, 0, 100, -60, width*0.2, height*0.1, width*0.3, height*0.1);
+  popMatrix();
+}
+
+void drawStickman() {
+  pushMatrix();
+  translate(width * 0.32, height * 0.5);
+  
+  // Body (Welding Apron)
+  noStroke();
+  fill(130, 100, 60); 
+  beginShape();
+  vertex(-15, -40);
+  vertex(15, -40);
+  vertex(25, 60);
+  vertex(-25, 60);
+  endShape(CLOSE);
+  
+  // Head
+  fill(255, 220, 180);
+  ellipse(0, -65, 40, 40);
+  
+  // Welding Goggles
+  fill(10);
+  rect(-10, -72, 30, 12, 3);
+  
+  // Arms holding torch
+  stroke(255, 220, 180);
+  strokeWeight(8);
+  line(0, -30, 60, 0); // Front arm
+  line(-10, -30, 50, 10); // Back arm
+  
+  // Legs
+  stroke(50);
+  line(-10, 60, -15, 120);
+  line(10, 60, 15, 120);
+  
+  popMatrix();
+}
+
+void drawInfoPanel(float ratio) {
+  fill(255);
+  textAlign(CENTER);
+  
+  String type = "";
+  String relation = "";
+  String application = "";
+  
+  // Determine flame characteristics based on ratio
+  if (ratio > 0.95 && ratio < 1.05) {
+    type = "NEUTRAL FLAME";
+    relation = "Oxygen == Acetylene";
+    application = "Applications: Mild steel, stainless steel, cast iron, copper, aluminum.";
+  } else if (ratio <= 0.95) {
+    type = "CARBURIZING FLAME";
+    relation = "Oxygen < Acetylene";
+    application = "Applications: High carbon steel, hard facing, nickel alloys.";
+  } else {
+    type = "OXIDIZING FLAME";
+    relation = "Oxygen > Acetylene";
+    application = "Applications: Brass, bronze, zinc alloys.";
+  }
+  
+  // Header Text
+  textSize(36);
+  text(type, width/2, 50);
+  
+  textSize(24);
+  fill(200, 200, 255);
+  text(relation, width/2, 90);
+  
+  fill(200, 255, 200);
+  textSize(18);
+  text(application, width/2, 130);
+  
+  // Gas Percentages
+  fill(255);
+  textSize(20);
+  text("Oxygen: " + int(oxyVal) + "% | Acetylene: " + int(aceVal) + "%", width/2, 170);
+}
+
+void drawTorch() {
+  noStroke();
+  // Torch Handle
+  fill(150);
+  rect(-40, -10, 50, 20, 5); 
+  // Needle Valves indicator
+  fill(0, 50, 200);
+  ellipse(-20, 0, 10, 10);
+  fill(200, 0, 0);
+  ellipse(-10, 0, 10, 10);
+  // Torch Nozzle
+  fill(180, 140, 40);
+  beginShape();
+  vertex(10, -10);
+  vertex(50, -4);
+  vertex(50, 4);
+  vertex(10, 10);
+  endShape(CLOSE);
+}
+
+void drawFlame(float ratio) {
+  pushMatrix();
+  translate(50, 0); // Move to tip of the torch
+  noStroke();
+  
+  // Outer Envelope (Common to all flames)
+  fill(40, 100, 255, 120);
+  ellipse(120, 0, 240, 60);
+  
+  if (ratio > 0.95 && ratio < 1.05) {
+    // Neutral Flame: Inner Zone & Outer Envelope
+    fill(255, 255, 255, 220);
+    ellipse(20, 0, 40, 16); // Inner Zone
+    
+  } else if (ratio <= 0.95) {
+    // Carburizing Flame: Inner Zone, Intermediate Zone (Feather), Outer Envelope
+    fill(255, 150, 50, 180);
+    ellipse(60, 0, 120, 24); // Intermediate Zone
+    
+    fill(255, 255, 255, 220);
+    ellipse(25, 0, 50, 16); // Inner Zone
+    
+  } else {
+    // Oxidizing Flame: Pointy Inner Zone, Outer Envelope
+    fill(255, 255, 255, 220);
+    triangle(0, -7, 25, 0, 0, 7); // Short, pointy Inner Zone
+  }
+  
+  popMatrix();
+}
+
+void drawControls() {
+  strokeWeight(4);
+  // Oxygen Control Line
+  stroke(100);
+  line(width*0.1, height*0.85, width*0.45, height*0.85);
+  // Acetylene Control Line
+  line(width*0.55, height*0.85, width*0.9, height*0.85);
+  
+  // Slider Knobs
+  noStroke();
+  // Oxy Knob (Blue/Black to represent O2)
+  fill(0, 150, 255);
+  ellipse(oxyX, height*0.85, 40, 40);
+  fill(255);
+  textSize(14);
+  text("O2", oxyX, height*0.85 + 5);
+  
+  // Ace Knob (Red to represent Fuel Gas)
+  fill(255, 50, 50);
+  ellipse(aceX, height*0.85, 40, 40);
+  fill(255);
+  text("C2H2", aceX, height*0.85 + 5);
+  
+  // Labels for sliders
+  fill(255);
+  text("OXYGEN CONTROL", width*0.275, height*0.92);
+  text("ACETYLENE CONTROL", width*0.725, height*0.92);
+}
+
+void mouseDragged() {
+  // Check if dragging Oxygen slider
+  if (dist(mouseX, mouseY, oxyX, height*0.85) < 50) {
+    oxyX = constrain(mouseX, width*0.1, width*0.45);
+    oxyVal = map(oxyX, width*0.1, width*0.45, 0, 100);
+  }
+  // Check if dragging Acetylene slider
+  if (dist(mouseX, mouseY, aceX, height*0.85) < 50) {
+    aceX = constrain(mouseX, width*0.55, width*0.9);
+    aceVal = map(aceX, width*0.55, width*0.9, 0, 100);
+  }
+}
