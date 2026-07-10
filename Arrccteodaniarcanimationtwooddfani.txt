@@ -1,0 +1,201 @@
+// Arc Welding & Slag Cleaning Simulator for APDE
+// Drag to weld, then scrub to clean the flux!
+
+float startX, endX, plateY;
+float currentX;
+boolean finishedWelding = false;
+ArrayList<WeldDrop> beads = new ArrayList<WeldDrop>();
+
+// Class to store individual parts of the weld bead
+class WeldDrop {
+  float x, y;
+  boolean cleaned;
+  
+  WeldDrop(float x, float y) {
+    this.x = x;
+    this.y = y;
+    this.cleaned = false; // Starts covered in flux/slag
+  }
+}
+
+void setup() {
+  // Use full screen for Android devices
+  fullScreen();
+  orientation(LANDSCAPE);
+  
+  // Define layout based on screen size
+  startX = width * 0.2;
+  endX = width * 0.8;
+  plateY = height * 0.6;
+  currentX = startX;
+}
+
+void draw() {
+  background(40, 45, 50); // Industrial dark background
+  
+  // 1. Draw the Workpiece (Metal Plate)
+  fill(120, 125, 130);
+  noStroke();
+  rect(startX - 50, plateY, (endX - startX) + 100, 60, 5);
+  
+  // Workpiece Label
+  fill(255);
+  textSize(width * 0.03);
+  textAlign(CENTER, CENTER);
+  text("Workpiece / Metal Plate", width / 2, plateY + 100);
+  
+  // 2. Draw the Weld Bead
+  for (WeldDrop drop : beads) {
+    if (drop.cleaned) {
+      fill(210, 215, 220); // Shiny silver cleaned weld
+      stroke(180);
+      strokeWeight(2);
+    } else {
+      fill(60, 45, 40); // Dark brown/gray slag coating
+      noStroke();
+    }
+    ellipse(drop.x, drop.y, 35, 25); // Bead ripple shape
+  }
+  
+  // 3. State Machine: Welding vs. Cleaning
+  if (!finishedWelding) {
+    drawWeldingProcess();
+  } else {
+    drawCleaningProcess();
+  }
+  
+  // 4. Restart Button
+  drawRestartButton();
+}
+
+void drawWeldingProcess() {
+  float eX = currentX;
+  float gap = height * 0.05; // Visual representation of the 3mm gap
+  float eY = plateY - gap;
+  
+  // Top Instructions
+  fill(0, 255, 100);
+  textSize(width * 0.04);
+  text("Step 1: Drag the electrode right (>>) to weld", width / 2, height * 0.15);
+  
+  // Touch/Drag Interaction for Welding
+  if (mousePressed) {
+    // Move electrode if dragging to the right
+    if (mouseX > currentX && mouseX <= endX) {
+      currentX = mouseX;
+      
+      // Deposit weld bead drops
+      if (frameCount % 4 == 0) {
+        beads.add(new WeldDrop(currentX, plateY));
+      }
+      
+      // Draw Animated Glowing Arc
+      stroke(255, 255, 200, 200); // Inner bright core
+      strokeWeight(8);
+      line(eX, eY, eX + random(-15, 15), plateY);
+      
+      stroke(100, 150, 255, 100); // Outer blue glow
+      strokeWeight(25);
+      line(eX, eY, eX, plateY);
+      
+      // Arc Label
+      fill(255, 255, 100);
+      textSize(width * 0.025);
+      text("Electric Arc", eX - 80, eY + (gap/2));
+    }
+    
+    // Check if reached the end
+    if (currentX >= endX - 10) {
+      finishedWelding = true;
+    }
+  }
+  
+  // Draw the Electrode
+  stroke(180);
+  strokeWeight(12);
+  line(eX, eY, eX + 60, eY - 180); // Inner metal rod
+  
+  stroke(200, 100, 50); 
+  strokeWeight(18);
+  line(eX + 10, eY - 30, eX + 60, eY - 180); // Outer Flux coating
+  
+  // Electrode Label
+  fill(255);
+  textSize(width * 0.03);
+  text("Electrode", eX + 120, eY - 100);
+  
+  // 3mm Gap Label and Bracket
+  stroke(255);
+  strokeWeight(2);
+  line(eX + 30, eY, eX + 50, eY); // Top bracket line
+  line(eX + 30, plateY, eX + 50, plateY); // Bottom bracket line
+  line(eX + 40, eY, eX + 40, plateY); // Connecting line
+  
+  fill(255, 150, 150);
+  textSize(width * 0.025);
+  text("3 mm Gap", eX + 110, eY + (gap/2));
+}
+
+void drawCleaningProcess() {
+  // Top Instructions
+  fill(0, 255, 100);
+  textSize(width * 0.04);
+  text("Step 2: Weld complete! Scrub over the bead to chip away the flux.", width / 2, height * 0.15);
+  
+  // Slag Label
+  if (frameCount % 60 < 30) {
+    fill(255, 100, 100);
+    textSize(width * 0.025);
+    text("Slag/Flux Coating", endX - 100, plateY - 40);
+  }
+  
+  // Touch/Drag Interaction for Cleaning
+  if (mousePressed && mouseY > plateY - 50 && mouseY < plateY + 50) {
+    
+    // Scrub logic: if the brush touches a bead, it becomes clean
+    for (WeldDrop drop : beads) {
+      if (!drop.cleaned && dist(mouseX, mouseY, drop.x, drop.y) < 50) {
+        drop.cleaned = true;
+      }
+    }
+    
+    // Draw Wire Brush attached to finger
+    drawWireBrush(mouseX, mouseY);
+  }
+}
+
+void drawWireBrush(float bx, float by) {
+  pushMatrix();
+  translate(bx, by);
+  
+  // Handle
+  fill(150, 100, 50);
+  noStroke();
+  rect(-30, -50, 60, 30, 5);
+  
+  // Bristles
+  stroke(180);
+  strokeWeight(2);
+  for (int i = 0; i < 15; i++) {
+    line(-25 + (i * 4), -20, -25 + (i * 4), 0);
+  }
+  popMatrix();
+}
+
+void drawRestartButton() {
+  fill(200, 50, 50);
+  noStroke();
+  rect(20, 20, 120, 50, 10);
+  fill(255);
+  textSize(width * 0.025);
+  textAlign(CENTER, CENTER);
+  text("Restart", 80, 45);
+  
+  // Handle Restart Click
+  if (mousePressed && mouseX > 20 && mouseX < 140 && mouseY > 20 && mouseY < 70) {
+    currentX = startX;
+    finishedWelding = false;
+    beads.clear();
+    delay(200); // Short debounce
+  }
+}
