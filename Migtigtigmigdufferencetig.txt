@@ -1,0 +1,451 @@
+// Complete Interactive Welding Simulation for APDE
+// Includes: Screen 1 (TIG), Screen 2 (MIG), Screen 3 (Comparison)
+
+int currentScreen = 1;
+float weldX;
+float slabY;
+float animTime = 0;
+
+void setup() {
+  fullScreen();
+  orientation(LANDSCAPE); 
+  weldX = width * 0.4;
+  slabY = height * 0.7;
+  noStroke();
+}
+
+void draw() {
+  animTime = millis() * 0.05;
+  
+  // Smoothly move torch if dragging in the work area (below the UI tabs)
+  if (mousePressed && mouseY > 60) {
+    weldX = lerp(weldX, mouseX, 0.2);
+    weldX = constrain(weldX, 250, width - 250);
+  }
+
+  // Render the current active screen
+  if (currentScreen == 1) {
+    drawTIG();
+  } else if (currentScreen == 2) {
+    drawMIG();
+  } else if (currentScreen == 3) {
+    drawComparison();
+  }
+  
+  drawTabs();
+}
+
+// -----------------------------------------------------------
+// UI CONTROLS
+// -----------------------------------------------------------
+void drawTabs() {
+  int tabW = width / 3;
+  int tabH = 60;
+  
+  for(int i = 1; i <= 3; i++) {
+    if (currentScreen == i) {
+      fill(20, 40, 100); // Active tab
+    } else {
+      fill(180, 190, 200); // Inactive tab
+    }
+    rect((i-1) * tabW, 0, tabW, tabH);
+    
+    fill(currentScreen == i ? 255 : 50);
+    textSize(22);
+    textAlign(CENTER, CENTER);
+    
+    String label = "";
+    if (i == 1) label = "1. TIG Simulation";
+    if (i == 2) label = "2. MIG Simulation";
+    if (i == 3) label = "3. Differences";
+    
+    text(label, (i-1) * tabW + (tabW / 2), tabH / 2);
+  }
+}
+
+void mousePressed() {
+  // Handle tab clicks
+  if (mouseY <= 60) {
+    int tabW = width / 3;
+    if (mouseX < tabW) currentScreen = 1;
+    else if (mouseX < tabW * 2) currentScreen = 2;
+    else currentScreen = 3;
+  }
+}
+
+// -----------------------------------------------------------
+// SCREEN 1: TIG WELDING
+// -----------------------------------------------------------
+void drawTIG() {
+  background(245, 248, 250);
+  
+  drawTIGPowerSystem();
+  
+  // Base Metal
+  fill(180, 185, 190);
+  rect(100, slabY, width - 200, 40);
+  
+  // Weld Metal (Bead)
+  for (float i = width - 150; i > weldX + 40; i -= 15) {
+    fill(140, 145, 150);
+    ellipse(i, slabY - 5, 45, 25);
+  }
+  
+  // Molten Pool & Arc
+  fill(240, 80, 20);
+  beginShape();
+  vertex(weldX - 20, slabY + 5);
+  vertex(weldX + 60, slabY - 15);
+  vertex(weldX + 70, slabY + 5);
+  endShape(CLOSE);
+  
+  fill(255, 230, 50);
+  triangle(weldX, slabY, weldX - 10, slabY - 30, weldX + 15, slabY - 25);
+  
+  // Shielding Gas
+  fill(50, 200, 255, 120);
+  beginShape();
+  vertex(weldX, slabY - 60);
+  vertex(weldX - 40, slabY);
+  vertex(weldX + 50, slabY);
+  endShape(CLOSE);
+
+  drawTIGTorchAssembly();
+  drawTIGLabels();
+}
+
+void drawTIGTorchAssembly() {
+  float cylX = weldX - 220;
+  float cylY = slabY - 280;
+  
+  // Gas Tube
+  noFill();
+  stroke(100, 200, 255);
+  strokeWeight(8);
+  bezier(cylX + 20, cylY - 60, cylX + 120, cylY - 60, weldX + 20, slabY - 180, weldX + 25, slabY - 120);
+  noStroke();
+  
+  // Gas Cylinder
+  fill(100, 110, 115);
+  rect(cylX - 30, cylY - 80, 60, 160, 10);
+  fill(50);
+  rect(cylX - 10, cylY - 95, 20, 15);
+
+  pushMatrix();
+  translate(weldX, slabY);
+  rotate(PI / 6);
+
+  // Nozzle
+  fill(80, 95, 100);
+  beginShape();
+  vertex(-35, -200); vertex(35, -200);
+  vertex(35, -80);   vertex(20, -30);
+  vertex(-20, -30);  vertex(-35, -80);
+  endShape(CLOSE);
+  
+  // Tungsten Electrode (Fixed, replaces wire feed)
+  fill(100, 100, 100);
+  rect(-5, -200, 10, 150);
+  triangle(-5, -50, 5, -50, 0, -30); // Pointed tip
+  
+  // Filler Rod (Hand-held)
+  stroke(170);
+  strokeWeight(6);
+  line(-80, 100, -20, 20); // Rod coming in from the side
+  noStroke();
+  
+  // ----------------------------------------------------
+  // VISUAL DIMENSION LINE FOR "STANDARD TIG GAP"
+  // Standard distance is usually 1/16" to 1/8" (1.5 - 3mm)
+  // ----------------------------------------------------
+  stroke(220, 40, 40); // Bright red
+  strokeWeight(2);
+  line(10, -30, 75, -30); // Tip of Tungsten level
+  line(10, 0, 75, 0);     // Workpiece level
+  line(65, -30, 65, 0);   // Vertical line
+  noStroke();
+  fill(220, 40, 40);
+  triangle(65, -30, 61, -22, 69, -22);
+  triangle(65, 0, 61, -8, 69, -8);
+  
+  // Dimension Label Text
+  pushMatrix();
+  translate(72, -15);
+  rotate(-PI / 2);
+  textAlign(CENTER, BOTTOM);
+  textSize(16);
+  text("ARC GAP", 0, -5);
+  text("1/16\" - 1/8\"", 0, 15); // Standard TIG Gap
+  popMatrix();
+
+  popMatrix(); // End torch rotation
+}
+
+void drawTIGPowerSystem() {
+  float powerX = width - 150;
+  float powerY = height - 100;
+  stroke(30); strokeWeight(5); noFill();
+  line(powerX, powerY, powerX - 250, powerY);
+  line(powerX - 250, powerY, powerX - 250, slabY + 40);
+  bezier(powerX + 50, powerY, powerX + 50, slabY - 100, weldX + 50, slabY - 50, weldX, slabY - 100);
+  noStroke();
+  fill(50, 55, 60);
+  rect(powerX, powerY - 40, 80, 80, 8);
+}
+
+void drawTIGLabels() {
+  fill(20, 40, 100);
+  textSize(28);
+  textAlign(LEFT, CENTER);
+  text("TIG WELDING (GTAW)", 50, 100);
+  
+  textSize(22);
+  // Pointers to TIG specific parts
+  text("Hand-held welding rod", weldX - 300, slabY - 20);
+  text("Fixed tungsten electrode", weldX + 100, slabY - 150);
+  text("Inert gas supply", weldX - 250, slabY - 280);
+}
+
+
+// -----------------------------------------------------------
+// SCREEN 2: MIG WELDING
+// -----------------------------------------------------------
+void drawMIG() {
+  background(245, 248, 250); 
+  
+  drawMIGPowerSystem();
+  
+  // Base Metal
+  fill(180, 185, 190);
+  rect(100, slabY, width - 200, 40);
+  
+  // Weld Metal (Bead)
+  for (float i = width - 150; i > weldX + 40; i -= 15) {
+    fill(140, 145, 150);
+    ellipse(i, slabY - 5, 45, 25);
+  }
+  
+  // Molten Weld Pool & Arc
+  fill(240, 80, 20); 
+  beginShape();
+  vertex(weldX - 20, slabY + 5);
+  vertex(weldX + 60, slabY - 15);
+  vertex(weldX + 70, slabY + 5);
+  endShape(CLOSE);
+  
+  fill(255, 230, 50); 
+  triangle(weldX, slabY, weldX - 10, slabY - 30, weldX + 15, slabY - 25);
+  
+  // Shielding Gas
+  fill(50, 200, 255, 120);
+  beginShape();
+  vertex(weldX, slabY - 60);
+  vertex(weldX - 40, slabY);
+  vertex(weldX + 50, slabY);
+  endShape(CLOSE);
+
+  drawMIGTorchAssembly();
+  drawMIGLabels();
+}
+
+void drawMIGTorchAssembly() {
+  float cylX = weldX - 220;
+  float cylY = slabY - 280;
+  
+  // Gas Tube connecting cylinder to torch
+  noFill(); stroke(100, 200, 255); strokeWeight(8);
+  bezier(cylX + 20, cylY - 60, cylX + 120, cylY - 60, weldX + 20, slabY - 180, weldX + 25, slabY - 120);
+  noStroke();
+  
+  // Animated Gas Arrows in the tube
+  float flow = (animTime * 0.5) % 1.0;
+  float arrowX = bezierPoint(cylX + 20, cylX + 120, weldX + 20, weldX + 25, flow);
+  float arrowY = bezierPoint(cylY - 60, cylY - 60, slabY - 180, slabY - 120, flow);
+  fill(0, 150, 200);
+  ellipse(arrowX, arrowY, 8, 8);
+
+  // Gas Cylinder Body
+  fill(100, 110, 115); rect(cylX - 30, cylY - 80, 60, 160, 10);
+  fill(50); rect(cylX - 10, cylY - 95, 20, 15);
+
+  // Main Torch Cross-Section (Rotated 30 degrees pointing down-left)
+  pushMatrix();
+  translate(weldX, slabY);
+  rotate(PI / 6);
+
+  // Outer Gas Nozzle
+  fill(80, 95, 100);
+  beginShape();
+  vertex(-35, -200); vertex(35, -200);
+  vertex(35, -80);   vertex(20, -30);
+  vertex(-20, -30);  vertex(-35, -80);
+  endShape(CLOSE);
+  
+  // Inner Gas Chamber
+  fill(50, 60, 65);
+  beginShape();
+  vertex(-25, -200); vertex(25, -200);
+  vertex(25, -85);   vertex(12, -35);
+  vertex(-12, -35);  vertex(-25, -85);
+  endShape(CLOSE);
+
+  // Inner Contact Tube
+  fill(230, 140, 40);
+  rect(-12, -200, 24, 150);
+  triangle(-12, -50, 12, -50, 6, -30);
+  triangle(-12, -50, -6, -30, 6, -30);
+
+  // Consumable Electrode / Machine-fed wire
+  fill(220, 225, 230);
+  rect(-3, -300, 6, 300);
+  
+  // Animated wire feeding effect
+  fill(150);
+  float wireOffset = animTime % 20;
+  for (float wy = -280; wy < 0; wy += 20) {
+    rect(-3, wy + wireOffset, 6, 10);
+  }
+
+  // Machine-fed Rollers (Spinning)
+  fill(30);
+  pushMatrix();
+  translate(-20, -260);
+  rotate(animTime * 0.2);
+  ellipse(0, 0, 30, 30);
+  fill(100); ellipse(0, 0, 10, 10);
+  popMatrix();
+  
+  pushMatrix();
+  translate(20, -260);
+  rotate(-animTime * 0.2);
+  fill(30); ellipse(0, 0, 30, 30);
+  fill(100); ellipse(0, 0, 10, 10);
+  popMatrix();
+  
+  // ----------------------------------------------------
+  // VISUAL DIMENSION LINE FOR "MIG STICKOUT"
+  // ----------------------------------------------------
+  stroke(220, 40, 40);
+  strokeWeight(2);
+  line(12, -30, 75, -30); 
+  line(15, 0, 75, 0);     
+  line(65, -30, 65, 0);
+  
+  noStroke();
+  fill(220, 40, 40);
+  triangle(65, -30, 61, -22, 69, -22); 
+  triangle(65, 0, 61, -8, 69, -8);     
+  
+  // Dimension Label Text
+  pushMatrix();
+  translate(72, -15);
+  rotate(-PI / 2);
+  textAlign(CENTER, BOTTOM);
+  textSize(16);
+  text("GAP (STICKOUT)", 0, -5);
+  text("3/8\" - 1/2\"", 0, 15); 
+  popMatrix();
+
+  popMatrix();
+}
+
+void drawMIGPowerSystem() {
+  float powerX = width - 150;
+  float powerY = height - 100;
+  
+  noFill(); stroke(30); strokeWeight(5);
+  line(powerX, powerY, powerX - 250, powerY);
+  line(powerX - 250, powerY, powerX - 250, slabY + 40);
+  
+  float torchTopX = weldX + 130; 
+  float torchTopY = slabY - 225;
+  bezier(powerX + 50, powerY, powerX + 50, torchTopY - 100, torchTopX + 50, torchTopY - 50, torchTopX, torchTopY);
+  
+  noStroke(); fill(50, 55, 60); rect(powerX, powerY - 40, 80, 80, 8);
+}
+
+void drawMIGLabels() {
+  fill(20, 40, 100);
+  textSize(28);
+  textAlign(LEFT, CENTER);
+  text("MIG WELDING (GMAW)", 50, 100); 
+  
+  textSize(22);
+  float tx = weldX; float ty = slabY;
+  
+  textAlign(RIGHT, CENTER);
+  text("Inert gas supply", tx - 260, ty - 280);
+  stroke(20, 40, 100); strokeWeight(2);
+  line(tx - 255, ty - 280, tx - 220, ty - 280); 
+  
+  textAlign(LEFT, CENTER);
+  text("Machine-fed wire rod", tx + 170, ty - 270);
+  line(tx + 165, ty - 270, tx + 130, ty - 250);
+  
+  noStroke();
+}
+
+// -----------------------------------------------------------
+// SCREEN 3: COMPARISON CHART
+// -----------------------------------------------------------
+void drawComparison() {
+  background(245, 248, 250);
+  
+  fill(20, 40, 100);
+  textSize(36);
+  textAlign(CENTER, TOP);
+  text("TIG vs MIG Welding Differences", width / 2, 100);
+  
+  int startX = width / 2 - 450;
+  int startY = 180;
+  int rowH = 70;
+  int cols = 3;
+  int totalWidth = 900;
+  
+  // Draw Background Rect
+  fill(255);
+  stroke(180, 190, 200);
+  strokeWeight(2);
+  rect(startX, startY, totalWidth, rowH * 6, 8);
+  
+  // Horizontal grid lines
+  for (int i = 1; i < 6; i++) {
+    line(startX, startY + i * rowH, startX + totalWidth, startY + i * rowH);
+  }
+  
+  // Vertical grid lines
+  line(startX + 200, startY, startX + 200, startY + rowH * 6);
+  line(startX + 550, startY, startX + 550, startY + rowH * 6);
+  
+  // Table Data
+  String[][] data = {
+    {"Feature", "TIG Welding (GTAW)", "MIG Welding (GMAW)"},
+    {"Electrode Type", "Non-consumable (Tungsten)", "Consumable (Wire fed from spool)"},
+    {"Filler Material", "Fed manually with free hand", "Automatically fed through torch"},
+    {"Standard Gap", "Arc Gap: 1/16\" to 1/8\"", "Stickout: 3/8\" to 1/2\""},
+    {"Skill Required", "High (Requires two hands & foot pedal)", "Low to Moderate (\"Point and shoot\")"},
+    {"Best Used For", "Thin metals, aluminum, precision work", "Thick metals, structural, production work"}
+  };
+  
+  noStroke();
+  textAlign(LEFT, CENTER);
+  
+  for (int i = 0; i < 6; i++) {
+    float y = startY + i * rowH + (rowH / 2);
+    
+    if (i == 0) {
+      fill(20, 40, 100); 
+      textSize(22);
+    } else {
+      fill(40, 50, 60);
+      textSize(18);
+    }
+    
+    // Column 1
+    text(data[i][0], startX + 20, y);
+    // Column 2
+    text(data[i][1], startX + 220, y);
+    // Column 3
+    text(data[i][2], startX + 570, y);
+  }
+}
