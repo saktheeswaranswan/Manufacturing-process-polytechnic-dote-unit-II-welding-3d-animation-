@@ -1,0 +1,278 @@
+// Interactive 2D MIG Welding Simulation for APDE
+// Matches the provided diagram (57658_2.jpg) with interactive dragging, 
+// gas shielding, cross-section, cathode/anode power wiring, and a 
+// dynamic engineering DIMENSION LINE showing the Stickout Gap.
+
+float weldX;
+float slabY;
+float animTime = 0;
+
+void setup() {
+  fullScreen();
+  orientation(LANDSCAPE); // Best for horizontal welding action
+  weldX = width * 0.4;
+  slabY = height * 0.7;
+  noStroke();
+}
+
+void draw() {
+  background(245, 248, 250); // Light background matching image
+  animTime = millis() * 0.05;
+  
+  // Smoothly move torch if dragging
+  if (mousePressed) {
+    weldX = lerp(weldX, mouseX, 0.2);
+    weldX = constrain(weldX, 250, width - 250);
+  }
+
+  // 1. DRAW POWER SOURCE & CABLES (Anode/Cathode Circuit)
+  drawPowerSystem();
+  
+  // 2. DRAW BASE METAL (Slab)
+  fill(180, 185, 190);
+  rect(100, slabY, width - 200, 40);
+  
+  // 3. DRAW WELD METAL (Bead)
+  // Draws the solidified weld metal from the right edge down to the current torch position
+  for (float i = width - 150; i > weldX + 40; i -= 15) {
+    fill(140, 145, 150);
+    ellipse(i, slabY - 5, 45, 25);
+  }
+  
+  // 4. DRAW MOLTEN WELD POOL & ARC
+  fill(240, 80, 20); // Orange/Red molten pool
+  beginShape();
+  vertex(weldX - 20, slabY + 5);
+  vertex(weldX + 60, slabY - 15);
+  vertex(weldX + 70, slabY + 5);
+  endShape(CLOSE);
+  
+  fill(255, 230, 50); // Bright Arc
+  triangle(weldX, slabY, weldX - 10, slabY - 30, weldX + 15, slabY - 25);
+  
+  // 5. DRAW SHIELDING GAS (Translucent cyan preventing oxidation)
+  fill(50, 200, 255, 120);
+  beginShape();
+  vertex(weldX, slabY - 60);
+  vertex(weldX - 40, slabY);
+  vertex(weldX + 50, slabY);
+  endShape(CLOSE);
+
+  // 6. DRAW TORCH ASSEMBLY & GAS CYLINDER
+  drawTorchAssembly();
+  
+  // 7. DRAW TEXT LABELS & POINTERS
+  drawLabels();
+}
+
+void drawTorchAssembly() {
+  // Gas Cylinder & Hose (Moves with the torch offset to the left)
+  float cylX = weldX - 220;
+  float cylY = slabY - 280;
+  
+  // Gas Tube connecting cylinder to torch
+  noFill();
+  stroke(100, 200, 255);
+  strokeWeight(8);
+  bezier(cylX + 20, cylY - 60, cylX + 120, cylY - 60, weldX + 20, slabY - 180, weldX + 25, slabY - 120);
+  noStroke();
+  
+  // Animated Gas Arrows in the tube
+  float flow = (animTime * 0.5) % 1.0;
+  float arrowX = bezierPoint(cylX + 20, cylX + 120, weldX + 20, weldX + 25, flow);
+  float arrowY = bezierPoint(cylY - 60, cylY - 60, slabY - 180, slabY - 120, flow);
+  fill(0, 150, 200);
+  ellipse(arrowX, arrowY, 8, 8); // Simplified arrow head
+
+  // Gas Cylinder Body
+  fill(100, 110, 115);
+  rect(cylX - 30, cylY - 80, 60, 160, 10);
+  fill(50);
+  rect(cylX - 10, cylY - 95, 20, 15); // Valve
+
+  // Main Torch Cross-Section (Rotated 30 degrees pointing down-left)
+  pushMatrix();
+  translate(weldX, slabY);
+  rotate(PI / 6); // 30 degrees
+
+  // Outer Gas Nozzle (Dark grey cutaway)
+  fill(80, 95, 100);
+  beginShape();
+  vertex(-35, -200); vertex(35, -200);
+  vertex(35, -80);   vertex(20, -30);
+  vertex(-20, -30);  vertex(-35, -80);
+  endShape(CLOSE);
+  
+  // Inner Gas Chamber (Darker grey void)
+  fill(50, 60, 65);
+  beginShape();
+  vertex(-25, -200); vertex(25, -200);
+  vertex(25, -85);   vertex(12, -35);
+  vertex(-12, -35);  vertex(-25, -85);
+  endShape(CLOSE);
+
+  // Inner Contact Tube (Orange/Copper)
+  fill(230, 140, 40);
+  rect(-12, -200, 24, 150);
+  triangle(-12, -50, 12, -50, 6, -30); // Tapered tip
+  triangle(-12, -50, -6, -30, 6, -30);
+
+  // Consumable Electrode / Machine-fed wire (Light gray)
+  fill(220, 225, 230);
+  rect(-3, -300, 6, 300);
+  
+  // Animated wire feeding effect (small moving dashes)
+  fill(150);
+  float wireOffset = animTime % 20;
+  for (float wy = -280; wy < 0; wy += 20) {
+    rect(-3, wy + wireOffset, 6, 10);
+  }
+
+  // Gas flow arrows inside the nozzle chamber
+  fill(100, 200, 255);
+  float gasOffset = animTime % 30;
+  // Left arrow
+  triangle(-18, -100 + gasOffset, -22, -110 + gasOffset, -14, -110 + gasOffset);
+  // Right arrow
+  triangle(18, -120 + gasOffset, 14, -130 + gasOffset, 22, -130 + gasOffset);
+
+  // Machine-fed Rollers (Spinning)
+  fill(30);
+  pushMatrix();
+  translate(-20, -260);
+  rotate(animTime * 0.2); // Spin inwards
+  ellipse(0, 0, 30, 30);
+  fill(100); ellipse(0, 0, 10, 10); // Center pin
+  popMatrix();
+  
+  pushMatrix();
+  translate(20, -260);
+  rotate(-animTime * 0.2); // Spin inwards opposite direction
+  fill(30); ellipse(0, 0, 30, 30);
+  fill(100); ellipse(0, 0, 10, 10);
+  popMatrix();
+  
+  // ----------------------------------------------------
+  // VISUAL DIMENSION LINE FOR "GAP / STICKOUT"
+  // ----------------------------------------------------
+  stroke(220, 40, 40); // Bright red for emphasis
+  strokeWeight(2);
+  
+  // Horizontal measurement ticks
+  line(12, -30, 75, -30); // Aligned with bottom of contact tube
+  line(15, 0, 75, 0);     // Aligned with weld pool/base metal surface
+  
+  // Vertical main dimension line
+  line(65, -30, 65, 0);
+  
+  // Dimension Arrows
+  noStroke();
+  fill(220, 40, 40);
+  triangle(65, -30, 61, -22, 69, -22); // Top arrow pointing up
+  triangle(65, 0, 61, -8, 69, -8);     // Bottom arrow pointing down
+  
+  // Dimension Label Text
+  pushMatrix();
+  translate(72, -15); // Center of the dimension line
+  rotate(-PI / 2);    // Rotate text to read vertically alongside the line
+  textAlign(CENTER, BOTTOM);
+  textSize(16);
+  text("GAP (STICKOUT)", 0, -5);
+  text("3/8\" - 1/2\"", 0, 15); 
+  popMatrix();
+
+  popMatrix(); // End torch rotation
+}
+
+void drawPowerSystem() {
+  float powerX = width - 150;
+  float powerY = height - 100;
+  
+  // Cables connecting circuit
+  noFill();
+  stroke(30);
+  strokeWeight(5);
+  
+  // Ground Cable (Anode/Cathode) -> Connects to Base Metal
+  line(powerX, powerY, powerX - 250, powerY);
+  line(powerX - 250, powerY, powerX - 250, slabY + 40);
+  
+  // Electrode Cable -> Connects to the moving wire feed head
+  // Calculated global position of the top of the rotated torch
+  float torchTopX = weldX + 130; 
+  float torchTopY = slabY - 225;
+  bezier(powerX + 50, powerY, powerX + 50, torchTopY - 100, torchTopX + 50, torchTopY - 50, torchTopX, torchTopY);
+  
+  noStroke();
+  
+  // Power Source Box
+  fill(50, 55, 60);
+  rect(powerX, powerY - 40, 80, 80, 8);
+  
+  // Yellow Lightning Bolt Symbol
+  fill(255, 220, 50);
+  beginShape();
+  vertex(powerX + 45, powerY - 20);
+  vertex(powerX + 30, powerY + 10);
+  vertex(powerX + 40, powerY + 10);
+  vertex(powerX + 35, powerY + 30);
+  vertex(powerX + 55, powerY);
+  vertex(powerX + 45, powerY);
+  endShape(CLOSE);
+}
+
+void drawLabels() {
+  fill(20, 40, 100); // Dark Blue text color matching image
+  textSize(22);
+  textAlign(LEFT, CENTER);
+  
+  // Static Labels
+  text("MIG WELDING", 50, 50); // Title
+  
+  // Dynamic Labels (Moving with Torch)
+  float tx = weldX;
+  float ty = slabY;
+  
+  // Left side labels
+  textAlign(RIGHT, CENTER);
+  text("Inert gas supply", tx - 260, ty - 280);
+  stroke(20, 40, 100); strokeWeight(2);
+  line(tx - 255, ty - 280, tx - 220, ty - 280); // Pointer line
+  
+  text("Molten weld pool", tx - 80, ty - 10);
+  line(tx - 75, ty - 10, tx - 10, ty + 5);
+  
+  text("Base Metal", tx - 150, ty + 20);
+  
+  // Right side labels (Pushed slightly further right to accommodate the new red dimension line)
+  textAlign(LEFT, CENTER);
+  text("Machine-fed wire rod", tx + 170, ty - 270);
+  line(tx + 165, ty - 270, tx + 130, ty - 250);
+  
+  text("Contact tube", tx + 140, ty - 150);
+  line(tx + 135, ty - 150, tx + 60, ty - 130);
+  
+  text("Gas nozzle", tx + 130, ty - 110);
+  line(tx + 125, ty - 110, tx + 70, ty - 100);
+  
+  text("Arc", tx + 120, ty - 65);
+  line(tx + 115, ty - 65, tx + 20, ty - 20);
+  
+  text("Shielding gas", tx + 130, ty - 30);
+  line(tx + 125, ty - 30, tx + 40, ty - 15);
+  
+  text("Weld Metal", tx + 100, ty + 10);
+  
+  // Power Source Labels
+  noStroke();
+  textAlign(CENTER, CENTER);
+  text("Power source", width - 110, height - 20);
+  text("Ground Cable", width - 280, height - 80);
+  
+  // Rotated Electrode Cable Text
+  pushMatrix();
+  translate(width - 50, height - 150);
+  rotate(-PI / 2); // Rotate text 90 degrees upwards
+  text("Electrode Cable", 0, 0);
+  popMatrix();
+}
